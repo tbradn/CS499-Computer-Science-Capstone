@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Name -->
+    <string name="app_name">Inventory Manager</string>
+
+    <!-- Login Screen -->
+    <string name="login_title">Inventory Manager</string>
+    <string name="username_hint">Username</string>
+    <string name="password_hint">Password</string>
+    <string name="login_button">Login</string>
+    <string name="create_account_button">Create Account</string>
+
+    <!-- Permissions Screen -->
+    <string name="permissions_title">SMS Notifications</string>
+    <string name="permissions_description">Allow notifications for low inventory alerts?</string>
+    <string name="permission_explanation">This app can send SMS notifications when inventory is low. This helps you stay informed about stock levels.</string>
+    <string name="grant_permission_button">Enable</string>
+    <string name="deny_permission_button">Skip</string>
+    <string name="continue_button">Continue</string>
+    <string name="permission_granted">✓ SMS Notifications Enabled</string>
+    <string name="permission_denied">✗ SMS Notifications Disabled</string>
+
+    <!-- Inventory Screen -->
+    <string name="inventory_title">Inventory Management</string>
+    <string name="add_new_item_title">Add New Item</string>
+    <string name="item_name_hint">Item Name</string>
+    <string name="item_quantity_hint">Qty</string>
+    <string name="item_price_hint">Price</string>
+    <string name="add_item_button">Add Item</string>
+    <string name="settings_button">Settings</string>
+
+    <!-- Inventory Grid Headers -->
+    <string name="header_item_name">Item Name</string>
+    <string name="header_quantity">Qty</string>
+    <string name="header_price">Price</string>
+    <string name="header_action">Action</string>
+    <string name="delete_button">Delete</string>
+
+    <!-- Empty State -->
+    <string name="empty_inventory_message">No items in inventory.\nAdd your first item above.</string>
+
+    <!-- Toast Messages - Login -->
+    <string name="login_successful">Login successful!</string>
+    <string name="login_failed">Invalid username or password</string>
+    <string name="account_created">Account created successfully!</string>
+    <string name="username_already_exists">Username already exists. Please choose a different username.</string>
+    <string name="welcome_back">Welcome back, %s!</string>
+
+    <!-- Validation Messages - Login -->
+    <string name="username_required">Username is required</string>
+    <string name="password_required">Password is required</string>
+    <string name="password_too_short">Password must be at least 4 characters</string>
+    <string name="password_too_long">Password cannot exceed 50 characters</string>
+    <string name="username_too_short">Username must be at least 3 characters</string>
+    <string name="username_too_long">Username cannot exceed 20 characters</string>
+    <string name="username_invalid_characters">Username can only contain letters, numbers, and underscores</string>
+
+    <!-- Toast Messages - Inventory -->
+    <string name="item_added_successfully">Item added successfully!</string>
+    <string name="item_deleted">%s deleted</string>
+    <string name="item_updated_successfully">Item updated successfully!</string>
+    <string name="database_error">Database error occurred</string>
+
+    <!-- Toast Messages - SMS -->
+    <string name="sms_notifications_enabled">SMS notifications enabled!</string>
+    <string name="sms_notifications_disabled">SMS notifications disabled</string>
+    <string name="sms_permission_required">SMS permission required for notifications</string>
+    <string name="sms_test_sent">Test SMS sent successfully</string>
+    <string name="sms_send_failed">Failed to send SMS: %s</string>
+
+    <!-- Settings -->
+    <string name="settings_clicked">Settings opened</string>
+    <string name="logout_successful">Logged out successfully</string>
+    <string name="logout_confirmation">Are you sure you want to logout?</string>
+
+    <!-- Low Inventory Alerts -->
+    <string name="low_inventory_alert">Low inventory alert: %1$s (%2$d remaining)</string>
+    <string name="low_inventory_threshold_reached">%s has reached low inventory threshold</string>
+
+    <!-- Validation Messages - Inventory -->
+    <string name="item_name_required">Item name is required</string>
+    <string name="quantity_required">Quantity is required</string>
+    <string name="price_required">Price is required</string>
+    <string name="quantity_must_be_positive">Quantity must be positive</string>
+    <string name="price_must_be_positive">Price must be positive</string>
+    <string name="invalid_quantity">Invalid quantity</string>
+    <string name="invalid_price">Invalid price</string>
+    <string name="fill_all_fields">Please fill all fields</string>
+    <string name="item_name_too_long">Item name is too long</string>
+    <string name="item_already_exists">Item with this name already exists</string>
+
+    <!-- Dialog Messages -->
+    <string name="delete_confirmation">Are you sure you want to delete this item?</string>
+    <string name="delete_item_title">Delete Item</string>
+    <string name="edit_item_name_title">Edit Item Name</string>
+    <string name="edit_quantity_title">Edit Quantity</string>
+    <string name="edit_price_title">Edit Price</string>
+    <string name="save_button">Save</string>
+    <string name="cancel_button">Cancel</string>
+    <string name="delete_confirm_button">Delete</string>
+    <string name="exit_confirmation">Are you sure you want to exit?</string>
+    <string name="exit_title">Exit Application</string>
+    <string name="exit_button">Exit</string>
+
+    <!-- About Dialog -->
+    <string name="about_title">About Inventory Manager</string>
+    <string name="about_message">Inventory Manager v1.0\n\nFeatures:\n• Add, edit, and delete inventory items\n• Persistent database storage\n• SMS notifications for low inventory\n• User authentication\n\nDeveloped for CS-360 Mobile Architecture</string>
+    <string name="ok_button">OK</string>
+
+    <!-- Error Messages -->
+    <string name="network_error">Network error occurred</string>
+    <string name="generic_error">An error occurred. Please try again.</string>
+    <string name="database_connection_error">Could not connect to database</string>
+    <string name="session_expired">Session expired. Please log in again.</string>
+    <string name="permission_denied_error">Permission denied</string>
+
+    <!-- Success Messages -->
+    <string name="operation_successful">Operation completed successfully</string>
+    <string name="data_saved">Data saved successfully</string>
+    <string name="changes_applied">Changes applied successfully</string>
+
+    <!-- Loading Messages -->
+    <string name="loading">Loading...</string>
+    <string name="saving">Saving...</string>
+    <string name="please_wait">Please wait...</string>
+    <string name="processing">Processing...</string>
+
+    <!-- Accessibility Descriptions -->
+    <string name="username_input_description">Enter your username</string>
+    <string name="password_input_description">Enter your password</string>
+    <string name="item_name_input_description">Enter item name</string>
+    <string name="quantity_input_description">Enter item quantity</string>
+    <string name="price_input_description">Enter item price</string>
+    <string name="add_item_description">Add new inventory item</string>
+    <string name="delete_item_description">Delete this inventory item</string>
+    <string name="edit_item_description">Edit this inventory item</string>
+    <string name="inventory_list_description">List of current inventory items</string>
+
+    <!-- SMS Notification Templates -->
+    <string name="sms_low_inventory_template">🚨 INVENTORY ALERT 🚨\n\nItem: %1$s\nCurrent Stock: %2$d\nStatus: LOW INVENTORY\n\nPlease restock soon.\n- Inventory Manager App</string>
+    <string name="sms_test_message">📱 TEST MESSAGE 📱\n\nThis is a test message from your Inventory Manager app.\n\nSMS notifications are working correctly!\n- Inventory Manager App</string>
+
+    <!-- Statistics -->
+    <string name="total_items">Total Items: %d</string>
+    <string name="total_quantity">Total Quantity: %d</string>
+    <string name="total_value">Total Value: %s</string>
+    <string name="low_stock_items">Low Stock Items: %d</string>
+    <string name="inventory_statistics">Inventory Statistics</string>
+
+    <!-- Menu Options -->
+    <string name="menu_refresh">Refresh</string>
+    <string name="menu_settings">Settings</string>
+    <string name="menu_logout">Logout</string>
+    <string name="menu_about">About</string>
+    <string name="menu_help">Help</string>
+    <string name="menu_statistics">Statistics</string>
+
+    <!-- Help Text -->
+    <string name="help_title">How to Use Inventory Manager</string>
+    <string name="help_content">1. Add Items: Fill in the item name, quantity, and price, then tap \'Add Item\'\n\n2. Edit Items: Tap on any item field to edit it\n\n3. Delete Items: Tap the \'Delete\' button next to an item\n\n4. Low Inventory: Items with 5 or fewer units will be highlighted in red\n\n5. SMS Notifications: Enable SMS permission to receive low inventory alerts\n\n6. Settings: Access additional options from the settings menu</string>
+
+    <!-- Placeholder Text -->
+    <string name="no_data_available">No data available</string>
+    <string name="coming_soon">Coming soon...</string>
+    <string name="feature_not_implemented">This feature is not yet implemented</string>
+</resources>
