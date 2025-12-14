@@ -848,13 +848,31 @@ public class InventoryActivity extends AppCompatActivity {
                 lowStockItems, currentUsername);
     }
 
-    /**
-     * Handle back button press to prompt for logout.
-     */
+    @SuppressWarnings("deprecation")
     @Override
     public void onBackPressed() {
-        // Call super to handle the back press properly
-        showLogoutDialog();
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Logout");
+        builder.setMessage("Do you want to logout and return to the login screen?");
+        builder.setIcon(android.R.drawable.ic_dialog_info);
+
+        builder.setPositiveButton("Logout", (dialog, which) -> {
+            LoginActivity.logoutUser(this);
+            Toast.makeText(this, "Logged out successfully", Toast.LENGTH_SHORT).show();
+
+            Intent intent = new Intent(this, LoginActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
+        });
+
+        builder.setNegativeButton("Stay", (dialog, which) -> {
+            dialog.dismiss();
+        });
+
+        builder.setCancelable(true);
+        AlertDialog dialog = builder.create();
+        dialog.show();
     }
 
     /**

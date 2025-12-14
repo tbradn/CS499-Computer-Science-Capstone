@@ -1,85 +1,195 @@
 package com.example.tristenbradneyinventoryapplication;
 
-import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.ForeignKey;
 import androidx.room.Index;
 import androidx.room.PrimaryKey;
+import androidx.annotation.NonNull;
+
+import java.text.NumberFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 /**
- * Room Entity for inventory items.
- * Represents the inventory table in the database with proper constraints.
+ * InventoryItemEntity - Enhanced database entity with audit trail support
+ *
+ * ENHANCEMENT ONE: MVVM Architecture with Room Database
+ * ENHANCEMENT THREE: Database Security and Audit Trail
+ *
+ * This entity now includes:
+ * - User tracking (who created/modified items)
+ * - Timestamp tracking (when items were created/modified)
+ * - Database constraints for data integrity
+ *
  */
-@Entity(tableName = "inventory_items",
+@Entity(
+        tableName = "inventory_items",
         foreignKeys = {
-                @ForeignKey(entity = UserEntity.class,
-                        parentColumns = "user_id",
-                        childColumns = "created_by",
-                        onDelete = ForeignKey.CASCADE),
-                @ForeignKey(entity = UserEntity.class,
-                        parentColumns = "user_id",
-                        childColumns = "last_modified_by",
-                        onDelete = ForeignKey.SET_NULL)
+                @ForeignKey(
+                        entity = UserEntity.class,
+                        parentColumns = "id",
+                        childColumns = "createdBy",
+                        onDelete = ForeignKey.SET_NULL
+                ),
+                @ForeignKey(
+                        entity = UserEntity.class,
+                        parentColumns = "id",
+                        childColumns = "lastModifiedBy",
+                        onDelete = ForeignKey.SET_NULL
+                )
         },
         indices = {
-                @Index(value = "item_name", unique = true),
-                @Index(value = "created_by"),
-                @Index(value = "last_modified_by")
-        })
+                @Index(value = "createdBy"),
+                @Index(value = "lastModifiedBy"),
+                @Index(value = "itemName")
+        }
+)
 public class InventoryItemEntity {
 
     @PrimaryKey(autoGenerate = true)
-    @ColumnInfo(name = "item_id")
-    private long itemId;
+    private long id;
 
-    @ColumnInfo(name = "item_name")
+    @NonNull
     private String itemName;
 
-    @ColumnInfo(name = "item_quantity")
     private int quantity;
 
-    @ColumnInfo(name = "item_price")
     private double price;
 
-    @ColumnInfo(name = "created_by")
+    // ENHANCEMENT THREE: Audit trail fields
     private long createdBy;
+    private Long lastModifiedBy;
 
-    @ColumnInfo(name = "last_modified_by")
-    private long lastModifiedBy;
-
-    @ColumnInfo(name = "created_date")
+    @NonNull
     private String createdDate;
 
-    @ColumnInfo(name = "modified_date")
-    private String modifiedDate;
+    private String lastModifiedDate;
 
-    @ColumnInfo(name = "last_editor_username")
-    private String lastEditorUsername;
+    // For display purposes - not stored in database
+    private transient String lastEditorUsername;
 
-    // Constructor
-    public InventoryItemEntity(String itemName, int quantity, double price,
-                               long createdBy, long lastModifiedBy) {
+    /**
+     * Default constructor required by Room
+     */
+    public InventoryItemEntity() {
+        this.createdDate = getCurrentTimestamp();
+    }
+
+    /**
+     * Constructor with basic fields
+     */
+    public InventoryItemEntity(@NonNull String itemName, int quantity, double price) {
+        this.itemName = itemName;
+        this.quantity = quantity;
+        this.price = price;
+        this.createdDate = getCurrentTimestamp();
+    }
+
+    /**
+     * Constructor with full audit trail fields
+     */
+    public InventoryItemEntity(@NonNull String itemName, int quantity, double price, long createdBy) {
         this.itemName = itemName;
         this.quantity = quantity;
         this.price = price;
         this.createdBy = createdBy;
-        this.lastModifiedBy = lastModifiedBy;
+        this.createdDate = getCurrentTimestamp();
     }
 
-    // Getters and Setters
-    public long getItemId() {
-        return itemId;
+    /**
+     * Get current timestamp in ISO 8601 format
+     */
+    private static String getCurrentTimestamp() {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+        return sdf.format(new Date());
     }
 
-    public void setItemId(long itemId) {
-        this.itemId = itemId;
+    /**
+     * Update the last modified timestamp
+     */
+    public void updateLastModifiedDate() {
+        this.lastModifiedDate = getCurrentTimestamp();
     }
 
+    // ========== BUSINESS LOGIC METHODS ==========
+
+    /**
+     * Check if item is low on stock
+     */
+    public boolean isLowStock(int threshold) {
+        return quantity <= threshold;
+    }
+
+    /**
+     * Get total value of this item (quantity * price)
+     */
+    public double getTotalValue() {
+        return quantity * price;
+    }
+
+    /**
+     * Get formatted price string
+     */
+    public String getFormattedPrice() {
+        return NumberFormat.getCurrencyInstance(Locale.US).format(price);
+    }
+
+    /**
+     * Get formatted total value string
+     */
+    public String getFormattedTotalValue() {
+        return NumberFormat.getCurrencyInstance(Locale.US).format(getTotalValue());
+    }
+
+    // ========== VALIDATION METHODS ==========
+
+    /**
+     * Validate item name
+     * ENHANCEMENT THREE: Input validation for security
+     */
+    public static boolean isValidName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return false;
+        }
+        if (name.length() > 100) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Validate quantity
+     * ENHANCEMENT THREE: Input validation for security
+     */
+    public static boolean isValidQuantity(int quantity) {
+        return quantity >= 0;
+    }
+
+    /**
+     * Validate price
+     * ENHANCEMENT THREE: Input validation for security
+     */
+    public static boolean isValidPrice(double price) {
+        return price >= 0;
+    }
+
+    // ========== GETTERS AND SETTERS ==========
+
+    public long getId() {
+        return id;
+    }
+
+    public void setId(long id) {
+        this.id = id;
+    }
+
+    @NonNull
     public String getItemName() {
         return itemName;
     }
 
-    public void setItemName(String itemName) {
+    public void setItemName(@NonNull String itemName) {
         this.itemName = itemName;
     }
 
@@ -107,28 +217,29 @@ public class InventoryItemEntity {
         this.createdBy = createdBy;
     }
 
-    public long getLastModifiedBy() {
+    public Long getLastModifiedBy() {
         return lastModifiedBy;
     }
 
-    public void setLastModifiedBy(long lastModifiedBy) {
+    public void setLastModifiedBy(Long lastModifiedBy) {
         this.lastModifiedBy = lastModifiedBy;
     }
 
+    @NonNull
     public String getCreatedDate() {
         return createdDate;
     }
 
-    public void setCreatedDate(String createdDate) {
+    public void setCreatedDate(@NonNull String createdDate) {
         this.createdDate = createdDate;
     }
 
-    public String getModifiedDate() {
-        return modifiedDate;
+    public String getLastModifiedDate() {
+        return lastModifiedDate;
     }
 
-    public void setModifiedDate(String modifiedDate) {
-        this.modifiedDate = modifiedDate;
+    public void setLastModifiedDate(String lastModifiedDate) {
+        this.lastModifiedDate = lastModifiedDate;
     }
 
     public String getLastEditorUsername() {
@@ -139,11 +250,17 @@ public class InventoryItemEntity {
         this.lastEditorUsername = lastEditorUsername;
     }
 
-    public double getTotalValue() {
-        return quantity * price;
-    }
-
-    public boolean isLowStock(int threshold) {
-        return quantity <= threshold;
+    @Override
+    public String toString() {
+        return "InventoryItemEntity{" +
+                "id=" + id +
+                ", itemName='" + itemName + '\'' +
+                ", quantity=" + quantity +
+                ", price=" + price +
+                ", createdBy=" + createdBy +
+                ", lastModifiedBy=" + lastModifiedBy +
+                ", createdDate='" + createdDate + '\'' +
+                ", lastModifiedDate='" + lastModifiedDate + '\'' +
+                '}';
     }
 }

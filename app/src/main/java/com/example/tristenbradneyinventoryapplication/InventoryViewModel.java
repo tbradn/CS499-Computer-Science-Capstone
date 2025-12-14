@@ -12,6 +12,7 @@ import com.example.tristenbradneyinventoryapplication.utils.InventorySearchManag
 import com.example.tristenbradneyinventoryapplication.utils.InventorySorter;
 import com.example.tristenbradneyinventoryapplication.utils.InventorySorter.SortMode;
 import com.example.tristenbradneyinventoryapplication.utils.LowStockManager;
+import com.example.tristenbradneyinventoryapplication.InventoryRepository.RepositoryCallback;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,184 @@ import java.util.List;
  * - Survives configuration changes (like screen rotations)
  * - Uses MVVM architecture with Room database
  */
+
+private final MutableLiveData<List<AuditLogEntity>> auditHistory = new MutableLiveData<>();
+private final MutableLiveData<Integer> auditLogCount = new MutableLiveData<>();
+
+/**
+ * Get audit history for a specific item
+ *
+ * @param itemId The ID of the item
+ * @return LiveData list of audit log entries
+ */
+public LiveData<List<AuditLogEntity>> getAuditHistoryForItem(long itemId) {
+    return repository.getAuditHistoryForItem(itemId);
+}
+
+/**
+ * Get audit history for current user
+ *
+ * @param userId The ID of the user
+ * @return LiveData list of audit log entries
+ */
+public LiveData<List<AuditLogEntity>> getAuditHistoryForUser(long userId) {
+    return repository.getAuditHistoryForUser(userId);
+}
+
+/**
+ * Get recent audit logs
+ *
+ * @return LiveData list of recent audit log entries
+ */
+public LiveData<List<AuditLogEntity>> getRecentAuditLogs() {
+    return repository.getRecentAuditLogs();
+}
+
+/**
+ * Get total count of audit log entries
+ */
+public void loadAuditLogCount() {
+    repository.getAuditLogCount(new RepositoryCallback<Integer>() {
+        @Override
+        public void onSuccess(Integer result) {
+            auditLogCount.postValue(result);
+        }
+
+        @Override
+        public void onError(String error) {
+            errorMessage.postValue("Failed to load audit count: " + error);
+        }
+    });
+}
+
+/**
+ * Get audit log count LiveData
+ */
+public LiveData<Integer> getAuditLogCount() {
+    return auditLogCount;
+}
+
+// ========== UPDATED INSERT/UPDATE/DELETE WITH CALLBACKS ==========
+
+/**
+ * Insert item - UPDATED to use callbacks for better error handling
+ */
+public void insert(String itemName, int quantity, double price, long userId) {
+    // Validate input
+    String validationError = validateInventoryItem(itemName, quantity, price);
+    if (validationError != null) {
+        errorMessage.setValue(validationError);
+        return;
+    }
+
+    InventoryItemEntity item = new InventoryItemEntity(itemName, quantity, price, userId);
+
+    repository.insert(item, userId, new RepositoryCallback<Long>() {
+        @Override
+        public void onSuccess(Long itemId) {
+            operationSuccess.postValue(true);
+        }
+
+        @Override
+        public void onError(String error) {
+            errorMessage.postValue(error);
+            operationSuccess.postValue(false);
+        }
+    });
+}
+
+/**
+ * Update item - UPDATED to use callbacks
+ */
+public void update(InventoryItemEntity item, int newQuantity, double newPrice, long userId) {
+    // Validate input
+    String validationError = validateQuantityAndPrice(newQuantity, newPrice);
+    if (validationError != null) {
+        errorMessage.setValue(validationError);
+        return;
+    }
+
+    repository.update(item, newQuantity, newPrice, userId, new RepositoryCallback<Boolean>() {
+        @Override
+        public void onSuccess(Boolean result) {
+            operationSuccess.postValue(true);
+            refreshDisplayedItems();
+            updateLowStockAlerts();
+        }
+
+        @Override
+        public void onError(String error) {
+            errorMessage.postValue(error);
+            operationSuccess.postValue(false);
+        }
+    });
+}
+
+/**
+ * Update item name - NEW method with audit logging
+ */
+public void updateName(InventoryItemEntity item, String newName, long userId) {
+    // Validate name
+    if (!InventoryItemEntity.isValidName(newName)) {
+        errorMessage.setValue("Invalid item name");
+        return;
+    }
+
+    repository.updateName(item, newName, userId, new RepositoryCallback<Boolean>() {
+        @Override
+        public void onSuccess(Boolean result) {
+            operationSuccess.postValue(true);
+            refreshDisplayedItems();
+        }
+
+        @Override
+        public void onError(String error) {
+            errorMessage.postValue(error);
+            operationSuccess.postValue(false);
+        }
+    });
+}
+
+/**
+ * Delete item - UPDATED to use callbacks
+ */
+public void delete(InventoryItemEntity item, long userId) {
+    repository.delete(item, userId, new RepositoryCallback<Boolean>() {
+        @Override
+        public void onSuccess(Boolean result) {
+            operationSuccess.postValue(true);
+            refreshDisplayedItems();
+            updateLowStockAlerts();
+        }
+
+        @Override
+        public void onError(String error) {
+            errorMessage.postValue(error);
+            operationSuccess.postValue(false);
+        }
+    });
+}
+
+/**
+ * Delete all items - UPDATED to use callbacks
+ */
+public void deleteAllItems(long userId) {
+    repository.deleteAllItems(userId, new RepositoryCallback<Boolean>() {
+        @Override
+        public void onSuccess(Boolean result) {
+            operationSuccess.postValue(true);
+            refreshDisplayedItems();
+            updateLowStockAlerts();
+        }
+
+        @Override
+        public void onError(String error) {
+            errorMessage.postValue(error);
+            operationSuccess.postValue(false);
+        }
+    });
+}
+
 public class InventoryViewModel extends AndroidViewModel {
 
     // Repository for data access
