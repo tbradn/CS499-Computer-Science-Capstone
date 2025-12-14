@@ -8,19 +8,50 @@ import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
+import com.example.tristenbradneyinventoryapplication.utils.InventorySearchManager;
+import com.example.tristenbradneyinventoryapplication.utils.InventorySorter;
+import com.example.tristenbradneyinventoryapplication.utils.InventorySorter.SortMode;
+import com.example.tristenbradneyinventoryapplication.utils.LowStockManager;
+
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * ViewModel for Inventory operations.
- * Holds UI-related data and business logic.
- * Survives configuration changes (like screen rotations).
+ * ViewModel for Inventory operations - ENHANCED WITH ALGORITHMS AND DATA STRUCTURES
+ *
+ * ENHANCEMENT TWO ADDITIONS:
+ * - Search functionality using linear search algorithm O(n)
+ * - Sorting capabilities using TimSort algorithm O(n log n)
+ * - Low-stock priority system using min-heap priority queue O(1) access
+ *
+ * Original features:
+ * - Holds UI-related data and business logic
+ * - Survives configuration changes (like screen rotations)
+ * - Uses MVVM architecture with Room database
  */
 public class InventoryViewModel extends AndroidViewModel {
 
+    // Repository for data access
     private InventoryRepository repository;
     private LiveData<List<InventoryItemEntity>> allItems;
+
+    // Original LiveData
     private MutableLiveData<String> errorMessage;
     private MutableLiveData<Boolean> operationSuccess;
+
+    // ========== ENHANCEMENT TWO: NEW ALGORITHM COMPONENTS ==========
+
+    // Algorithm and data structure components
+    private final InventorySearchManager searchManager;
+    private final InventorySorter sorter;
+    private final LowStockManager lowStockManager;
+
+    // New LiveData for search/sort/low-stock features
+    private final MutableLiveData<List<InventoryItemEntity>> displayedItems;
+    private final MutableLiveData<List<InventoryItemEntity>> lowStockItems;
+    private final MutableLiveData<String> currentSearchQuery;
+    private final MutableLiveData<SortMode> currentSortMode;
+    private final MutableLiveData<LowStockManager.LowStockStatus> lowStockStatus;
 
     public InventoryViewModel(@NonNull Application application) {
         super(application);
@@ -28,9 +59,21 @@ public class InventoryViewModel extends AndroidViewModel {
         allItems = repository.getAllItems();
         errorMessage = new MutableLiveData<>();
         operationSuccess = new MutableLiveData<>();
+
+        // Initialize algorithm components
+        searchManager = new InventorySearchManager();
+        sorter = new InventorySorter();
+        lowStockManager = new LowStockManager();
+
+        // Initialize new LiveData
+        displayedItems = new MutableLiveData<>(new ArrayList<>());
+        lowStockItems = new MutableLiveData<>(new ArrayList<>());
+        currentSearchQuery = new MutableLiveData<>("");
+        currentSortMode = new MutableLiveData<>(SortMode.NAME_ASC);
+        lowStockStatus = new MutableLiveData<>();
     }
 
-    // ========== GETTERS FOR LIVEDATA ==========
+    // ========== ORIGINAL GETTERS FOR LIVEDATA ==========
 
     public LiveData<List<InventoryItemEntity>> getAllItems() {
         return allItems;
@@ -44,10 +87,49 @@ public class InventoryViewModel extends AndroidViewModel {
         return operationSuccess;
     }
 
-    // ========== INVENTORY OPERATIONS ==========
+    // ========== ENHANCEMENT TWO: NEW GETTERS FOR LIVEDATA ==========
+
+    /**
+     * Gets the currently displayed items (after search and sort applied).
+     * Use this instead of getAllItems() to display filtered/sorted data.
+     */
+    public LiveData<List<InventoryItemEntity>> getDisplayedItems() {
+        return displayedItems;
+    }
+
+    /**
+     * Gets low-stock items in priority order (most urgent first).
+     */
+    public LiveData<List<InventoryItemEntity>> getLowStockItems() {
+        return lowStockItems;
+    }
+
+    /**
+     * Gets the current search query.
+     */
+    public LiveData<String> getCurrentSearchQuery() {
+        return currentSearchQuery;
+    }
+
+    /**
+     * Gets the current sort mode.
+     */
+    public LiveData<SortMode> getCurrentSortMode() {
+        return currentSortMode;
+    }
+
+    /**
+     * Gets low-stock status summary with categorized counts.
+     */
+    public LiveData<LowStockManager.LowStockStatus> getLowStockStatus() {
+        return lowStockStatus;
+    }
+
+    // ========== ORIGINAL INVENTORY OPERATIONS (ENHANCED) ==========
 
     /**
      * Insert a new inventory item with validation.
+     * ENHANCED: Now calls refresh methods after successful insert.
      */
     public void insert(String itemName, int quantity, double price, long userId) {
         // Validate input
@@ -71,6 +153,9 @@ public class InventoryViewModel extends AndroidViewModel {
         repository.insert(item, itemId -> {
             if (itemId > 0) {
                 operationSuccess.postValue(true);
+                // ENHANCEMENT TWO: Refresh display and update alerts
+                refreshDisplayedItems();
+                updateLowStockAlerts();
             } else if (itemId == -2) {
                 errorMessage.postValue("Item name already exists");
                 operationSuccess.postValue(false);
@@ -83,6 +168,7 @@ public class InventoryViewModel extends AndroidViewModel {
 
     /**
      * Update an existing inventory item.
+     * ENHANCED: Now calls refresh methods after successful update.
      */
     public void update(InventoryItemEntity item, int newQuantity, double newPrice, long userId) {
         // Validate input
@@ -102,6 +188,9 @@ public class InventoryViewModel extends AndroidViewModel {
         repository.update(item, success -> {
             if (success) {
                 operationSuccess.postValue(true);
+                // ENHANCEMENT TWO: Refresh display and update alerts
+                refreshDisplayedItems();
+                updateLowStockAlerts();
             } else {
                 errorMessage.postValue("Failed to update item");
                 operationSuccess.postValue(false);
@@ -111,11 +200,15 @@ public class InventoryViewModel extends AndroidViewModel {
 
     /**
      * Delete an inventory item.
+     * ENHANCED: Now calls refresh methods after successful delete.
      */
     public void delete(InventoryItemEntity item) {
         repository.delete(item, success -> {
             if (success) {
                 operationSuccess.postValue(true);
+                // ENHANCEMENT TWO: Refresh display and update alerts
+                refreshDisplayedItems();
+                updateLowStockAlerts();
             } else {
                 errorMessage.postValue("Failed to delete item");
                 operationSuccess.postValue(false);
@@ -131,14 +224,14 @@ public class InventoryViewModel extends AndroidViewModel {
     }
 
     /**
-     * Get low stock items.
+     * Get low stock items (original method - still available).
      */
     public LiveData<List<InventoryItemEntity>> getLowStockItems(int threshold) {
         return repository.getLowStockItems(threshold);
     }
 
     /**
-     * Search items by name.
+     * Search items by name (original method - still available).
      */
     public LiveData<List<InventoryItemEntity>> searchItems(String query) {
         return repository.searchItems(query);
@@ -146,9 +239,186 @@ public class InventoryViewModel extends AndroidViewModel {
 
     /**
      * Delete all items.
+     * ENHANCED: Now calls refresh methods after deletion.
      */
     public void deleteAllItems() {
         repository.deleteAllItems();
+        refreshDisplayedItems();
+        updateLowStockAlerts();
+    }
+
+    // ========== ENHANCEMENT TWO: SEARCH FUNCTIONALITY ==========
+
+    /**
+     * Performs search and updates displayed items.
+     *
+     * Algorithm: Linear search with substring matching
+     * Time Complexity: O(n) where n is the number of items
+     * Space Complexity: O(m) where m is the number of matching items
+     *
+     * @param query Search term to filter items
+     */
+    public void searchInventoryItems(String query) {
+        currentSearchQuery.setValue(query);
+        applySearchAndSort();
+    }
+
+    /**
+     * Clears the current search and shows all items.
+     */
+    public void clearSearch() {
+        currentSearchQuery.setValue("");
+        applySearchAndSort();
+    }
+
+    // ========== ENHANCEMENT TWO: SORTING FUNCTIONALITY ==========
+
+    /**
+     * Changes the sort mode and updates displayed items.
+     *
+     * Algorithm: TimSort (via Java Collections.sort)
+     * Time Complexity: O(n log n) average and worst case
+     *
+     * @param sortMode The new sort mode to apply
+     */
+    public void setSortMode(SortMode sortMode) {
+        currentSortMode.setValue(sortMode);
+        applySearchAndSort();
+    }
+
+    /**
+     * Toggles between ascending and descending for current sort field.
+     */
+    public void toggleSortOrder() {
+        SortMode current = currentSortMode.getValue();
+        if (current == null) return;
+
+        SortMode newMode;
+        switch (current) {
+            case NAME_ASC:
+                newMode = SortMode.NAME_DESC;
+                break;
+            case NAME_DESC:
+                newMode = SortMode.NAME_ASC;
+                break;
+            case QUANTITY_ASC:
+                newMode = SortMode.QUANTITY_DESC;
+                break;
+            case QUANTITY_DESC:
+                newMode = SortMode.QUANTITY_ASC;
+                break;
+            case PRICE_ASC:
+                newMode = SortMode.PRICE_DESC;
+                break;
+            case PRICE_DESC:
+                newMode = SortMode.PRICE_ASC;
+                break;
+            default:
+                newMode = SortMode.NAME_ASC;
+        }
+
+        setSortMode(newMode);
+    }
+
+    // ========== ENHANCEMENT TWO: COMBINED SEARCH AND SORT ==========
+
+    /**
+     * Applies current search query and sort mode to the inventory list.
+     *
+     * Algorithm Flow:
+     * 1. Get all items from repository
+     * 2. Apply search filter (O(n))
+     * 3. Apply sort (O(m log m) where m is search result count)
+     * 4. Update displayed items LiveData
+     *
+     * Overall Time Complexity: O(n + m log m)
+     */
+    private void applySearchAndSort() {
+        List<InventoryItemEntity> items = allItems.getValue();
+        if (items == null) {
+            items = new ArrayList<>();
+        }
+
+        // Step 1: Apply search filter
+        String query = currentSearchQuery.getValue();
+        List<InventoryItemEntity> searchResults = searchManager.searchByName(items, query);
+
+        // Step 2: Apply sort
+        SortMode sortMode = currentSortMode.getValue();
+        if (sortMode == null) {
+            sortMode = SortMode.NAME_ASC;
+        }
+        List<InventoryItemEntity> sortedResults = sorter.sort(searchResults, sortMode);
+
+        // Step 3: Update displayed items
+        displayedItems.setValue(sortedResults);
+    }
+
+    /**
+     * Manually triggers refresh of displayed items.
+     * Useful when data changes externally.
+     */
+    public void refreshDisplayedItems() {
+        applySearchAndSort();
+    }
+
+    // ========== ENHANCEMENT TWO: LOW-STOCK PRIORITY MANAGEMENT ==========
+
+    /**
+     * Updates low-stock alerts and priority queue.
+     *
+     * Data Structure: Min-Heap (Priority Queue)
+     * Time Complexity: O(n + m log m) where:
+     *   - n is total inventory size (scanning)
+     *   - m is number of low-stock items (building heap)
+     */
+    public void updateLowStockAlerts() {
+        List<InventoryItemEntity> items = allItems.getValue();
+        if (items == null || items.isEmpty()) {
+            lowStockItems.setValue(new ArrayList<>());
+            lowStockStatus.setValue(new LowStockManager.LowStockStatus(0, 0, 0));
+            return;
+        }
+
+        // Update priority queue with all items
+        lowStockManager.updateLowStockItems(items);
+
+        // Get prioritized low-stock items (sorted by urgency)
+        List<InventoryItemEntity> prioritizedItems = lowStockManager.getLowStockItemsSorted();
+        lowStockItems.setValue(prioritizedItems);
+
+        // Update status with categorized counts
+        LowStockManager.LowStockStatus status = lowStockManager.getStatus();
+        lowStockStatus.setValue(status);
+    }
+
+    /**
+     * Gets the single most urgent low-stock item.
+     *
+     * Time Complexity: O(1) - constant time access to heap root
+     *
+     * @return The most urgent item, or null if no low-stock items
+     */
+    public InventoryItemEntity getMostUrgentItem() {
+        return lowStockManager.getMostUrgentItem();
+    }
+
+    /**
+     * Gets count of items flagged as low-stock.
+     *
+     * @return Number of items below or at threshold
+     */
+    public int getLowStockCount() {
+        return lowStockManager.getLowStockCount();
+    }
+
+    /**
+     * Gets critically low items (quantity < 25% of threshold).
+     *
+     * @return List of critical items needing immediate attention
+     */
+    public List<InventoryItemEntity> getCriticalItems() {
+        return lowStockManager.getCriticalItems();
     }
 
     // ========== USER OPERATIONS ==========

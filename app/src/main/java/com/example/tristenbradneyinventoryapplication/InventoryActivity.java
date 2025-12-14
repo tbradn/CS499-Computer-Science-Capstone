@@ -2,8 +2,11 @@ package com.example.tristenbradneyinventoryapplication;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -14,25 +17,33 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
 
+import com.example.tristenbradneyinventoryapplication.utils.InventorySorter;
+
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * InventoryActivity - MVVM Enhanced Version
+ * InventoryActivity - MVVM Enhanced Version with Algorithms and Data Structures
  *
- * MAJOR CHANGES FOR MVVM ARCHITECTURE:
+ * ENHANCEMENT ONE (MVVM):
  * 1. Added ViewModel instead of direct DatabaseHelper access
  * 2. Added LiveData observers for automatic UI updates
  * 3. Validation moved to ViewModel layer
  * 4. Background thread handling managed by Repository
  *
- * This demonstrates separation of concerns and modern Android architecture.
+ * ENHANCEMENT TWO (Algorithms and Data Structures):
+ * 1. Search functionality - Real-time filtering with O(n) linear search
+ * 2. Sorting capabilities - Multiple sort modes with O(n log n) TimSort
+ * 3. Low-stock priority system - Min-heap priority queue with O(1) access to urgent items
+ *
+ * This demonstrates separation of concerns and modern Android architecture
+ * combined with efficient algorithms and data structures.
  */
 public class InventoryActivity extends AppCompatActivity {
 
-    // UI Components
+    // Original UI Components
     private EditText itemNameInput;
     private EditText itemQuantityInput;
     private EditText itemPriceInput;
@@ -41,14 +52,18 @@ public class InventoryActivity extends AppCompatActivity {
     private LinearLayout inventoryContainer;
     private TextView emptyStateText;
 
+    // ENHANCEMENT TWO: New UI Components for search, sort, and alerts
+    private EditText searchEditText;
+    private Button sortByNameButton;
+    private Button sortByQuantityButton;
+    private Button sortByPriceButton;
+    private Button toggleSortButton;
+    private TextView lowStockAlertText;
+
     // Data and Helper Classes
     private List<InventoryItemEntity> inventoryItems;
     private NumberFormat currencyFormat;
-
-    // MVVM CHANGE: Replace DatabaseHelper with ViewModel
-    // OLD: private DatabaseHelper databaseHelper;
     private InventoryViewModel viewModel;
-
     private SMSHelper smsHelper;
 
     // User session information
@@ -68,14 +83,19 @@ public class InventoryActivity extends AppCompatActivity {
         setupObservers();
         setupClickListeners();
         showWelcomeMessage();
+
+        // ENHANCEMENT TWO: Initial data load
+        viewModel.refreshDisplayedItems();
+        viewModel.updateLowStockAlerts();
     }
 
     /**
      * Initialize all UI components and helper classes.
+     * ENHANCED: Now includes search, sort, and alert UI components.
      */
     private void initializeComponents() {
 
-        // Initialize UI components
+        // Initialize original UI components
         itemNameInput = findViewById(R.id.item_name_input);
         itemQuantityInput = findViewById(R.id.item_quantity_input);
         itemPriceInput = findViewById(R.id.item_price_input);
@@ -84,12 +104,19 @@ public class InventoryActivity extends AppCompatActivity {
         inventoryContainer = findViewById(R.id.inventory_container);
         emptyStateText = findViewById(R.id.empty_state_text);
 
+        // ENHANCEMENT TWO: Initialize new UI components
+        searchEditText = findViewById(R.id.searchEditText);
+        sortByNameButton = findViewById(R.id.sortByNameButton);
+        sortByQuantityButton = findViewById(R.id.sortByQuantityButton);
+        sortByPriceButton = findViewById(R.id.sortByPriceButton);
+        toggleSortButton = findViewById(R.id.toggleSortButton);
+        lowStockAlertText = findViewById(R.id.lowStockAlertText);
+
         // Initialize data structures
         inventoryItems = new ArrayList<>();
         currencyFormat = NumberFormat.getCurrencyInstance(Locale.US);
 
-        // MVVM CHANGE: Initialize ViewModel instead of DatabaseHelper
-        // OLD: databaseHelper = DatabaseHelper.getInstance(this);
+        // Initialize ViewModel
         viewModel = new ViewModelProvider(this).get(InventoryViewModel.class);
 
         smsHelper = new SMSHelper(this);
@@ -110,11 +137,13 @@ public class InventoryActivity extends AppCompatActivity {
     }
 
     /**
-     * NEW METHOD: Setup LiveData observers for automatic UI updates.
+     * Setup LiveData observers for automatic UI updates.
+     * ENHANCED: Now observes displayedItems (filtered/sorted) instead of allItems.
      */
     private void setupObservers() {
-        // Observe all inventory items - UI updates automatically when data changes
-        viewModel.getAllItems().observe(this, items -> {
+        // ENHANCEMENT TWO: Observe displayed items (with search and sort applied)
+        // This replaces the original observer on allItems
+        viewModel.getDisplayedItems().observe(this, items -> {
             if (items != null) {
                 inventoryItems.clear();
                 inventoryItems.addAll(items);
@@ -122,14 +151,43 @@ public class InventoryActivity extends AppCompatActivity {
             }
         });
 
-        // Observe error messages
+        // ENHANCEMENT TWO: Observe low-stock items for priority alerts
+        viewModel.getLowStockItems().observe(this, lowStockItems -> {
+            updateLowStockAlertDisplay(lowStockItems);
+        });
+
+        // ENHANCEMENT TWO: Observe low-stock status for detailed statistics
+        viewModel.getLowStockStatus().observe(this, status -> {
+            if (status != null && status.totalCount > 0) {
+                String alertText = String.format(
+                        "Low Stock Alert - Critical: %d | Warning: %d | Low: %d",
+                        status.criticalCount,
+                        status.warningCount,
+                        status.lowStockCount
+                );
+                lowStockAlertText.setText(alertText);
+                lowStockAlertText.setVisibility(View.VISIBLE);
+
+                // Set background color based on highest priority level
+                if (status.criticalCount > 0) {
+                    lowStockAlertText.setBackgroundColor(Color.parseColor("#FFEBEE")); // Red
+                } else if (status.warningCount > 0) {
+                    lowStockAlertText.setBackgroundColor(Color.parseColor("#FFF3E0")); // Orange
+                } else {
+                    lowStockAlertText.setBackgroundColor(Color.parseColor("#FFFDE7")); // Yellow
+                }
+            } else {
+                lowStockAlertText.setVisibility(View.GONE);
+            }
+        });
+
+        // Original observers
         viewModel.getErrorMessage().observe(this, errorMessage -> {
             if (errorMessage != null && !errorMessage.isEmpty()) {
                 Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show();
             }
         });
 
-        // Observe operation success
         viewModel.getOperationSuccess().observe(this, success -> {
             if (success != null && success) {
                 clearInputFields();
@@ -147,15 +205,160 @@ public class InventoryActivity extends AppCompatActivity {
 
     /**
      * Set up click listeners for all interactive elements.
+     * ENHANCED: Now includes search, sort, and toggle button listeners.
      */
     private void setupClickListeners() {
+        // Original listeners
         addItemButton.setOnClickListener(v -> addNewItem());
         settingsButton.setOnClickListener(v -> openSettings());
+
+        // ENHANCEMENT TWO: Search functionality
+        searchEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Trigger search on each character change
+                viewModel.searchInventoryItems(s.toString());
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        // ENHANCEMENT TWO: Sort button listeners
+        sortByNameButton.setOnClickListener(v -> {
+            viewModel.setSortMode(InventorySorter.SortMode.NAME_ASC);
+            highlightActiveButton(sortByNameButton);
+            Toast.makeText(this, "Sorting by Name", Toast.LENGTH_SHORT).show();
+        });
+
+        sortByQuantityButton.setOnClickListener(v -> {
+            viewModel.setSortMode(InventorySorter.SortMode.QUANTITY_ASC);
+            highlightActiveButton(sortByQuantityButton);
+            Toast.makeText(this, "Sorting by Quantity", Toast.LENGTH_SHORT).show();
+        });
+
+        sortByPriceButton.setOnClickListener(v -> {
+            viewModel.setSortMode(InventorySorter.SortMode.PRICE_ASC);
+            highlightActiveButton(sortByPriceButton);
+            Toast.makeText(this, "Sorting by Price", Toast.LENGTH_SHORT).show();
+        });
+
+        // ENHANCEMENT TWO: Toggle sort order (ascending <-> descending)
+        toggleSortButton.setOnClickListener(v -> {
+            viewModel.toggleSortOrder();
+            // Update icon to show current direction
+            InventorySorter.SortMode currentMode = viewModel.getCurrentSortMode().getValue();
+            if (currentMode != null) {
+                String direction = currentMode.name().endsWith("ASC") ? "↑" : "↓";
+                toggleSortButton.setText(direction);
+            }
+        });
+
+        // ENHANCEMENT TWO: Make low-stock alert clickable to show details
+        lowStockAlertText.setOnClickListener(v -> showLowStockDetailsDialog());
+    }
+
+    // ========== ENHANCEMENT TWO: NEW HELPER METHODS ==========
+
+    /**
+     * Highlights the active sort button and resets others.
+     */
+    private void highlightActiveButton(Button activeButton) {
+        // Reset all buttons to default state
+        sortByNameButton.setBackgroundColor(Color.TRANSPARENT);
+        sortByQuantityButton.setBackgroundColor(Color.TRANSPARENT);
+        sortByPriceButton.setBackgroundColor(Color.TRANSPARENT);
+
+        // Highlight the active button
+        activeButton.setBackgroundColor(Color.parseColor("#E3F2FD")); // Light blue
     }
 
     /**
-     * MODIFIED: Add a new inventory item using ViewModel.
-     * ViewModel handles validation and database operations on background thread.
+     * Updates the low-stock alert display with most urgent item.
+     */
+    private void updateLowStockAlertDisplay(List<InventoryItemEntity> lowStockItems) {
+        if (lowStockItems == null || lowStockItems.isEmpty()) {
+            lowStockAlertText.setVisibility(View.GONE);
+            return;
+        }
+
+        // Get the most urgent item (O(1) operation!)
+        InventoryItemEntity mostUrgent = viewModel.getMostUrgentItem();
+        if (mostUrgent != null) {
+            String message = String.format(
+                    "Most Urgent: %s (Qty: %d / Threshold: %d)",
+                    mostUrgent.getItemName(),
+                    mostUrgent.getQuantity(),
+                    10 // Using default threshold
+            );
+            lowStockAlertText.setText(message);
+            lowStockAlertText.setVisibility(View.VISIBLE);
+
+            // Set text color based on urgency
+            double ratio = (double) mostUrgent.getQuantity() / 10;
+            if (ratio < 0.25) {
+                lowStockAlertText.setTextColor(Color.parseColor("#D32F2F")); // Critical - Red
+            } else if (ratio < 0.75) {
+                lowStockAlertText.setTextColor(Color.parseColor("#F57C00")); // Warning - Orange
+            } else {
+                lowStockAlertText.setTextColor(Color.parseColor("#F9A825")); // Low Stock - Yellow
+            }
+        }
+    }
+
+    /**
+     * Shows a dialog with all low-stock items categorized by urgency.
+     */
+    private void showLowStockDetailsDialog() {
+        List<InventoryItemEntity> lowStockItems = viewModel.getLowStockItems().getValue();
+        if (lowStockItems == null || lowStockItems.isEmpty()) {
+            Toast.makeText(this, "No low-stock items", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Build message with all low-stock items (already sorted by priority!)
+        StringBuilder message = new StringBuilder("Low Stock Items (by urgency):\n\n");
+
+        List<InventoryItemEntity> criticalItems = viewModel.getCriticalItems();
+        if (!criticalItems.isEmpty()) {
+            message.append("CRITICAL (< 25%):\n");
+            for (InventoryItemEntity item : criticalItems) {
+                message.append(String.format("  • %s: Qty %d (Threshold: %d)\n",
+                        item.getItemName(), item.getQuantity(), 10));
+            }
+            message.append("\n");
+        }
+
+        // Show all low-stock items
+        message.append("ALL LOW-STOCK ITEMS:\n");
+        for (InventoryItemEntity item : lowStockItems) {
+            double ratio = (double) item.getQuantity() / 10;
+            String urgencyIcon = ratio < 0.25 ? "🔴" : ratio < 0.75 ? "🟠" : "🟡";
+            message.append(String.format("  %s %s: Qty %d (Threshold: %d)\n",
+                    urgencyIcon, item.getItemName(), item.getQuantity(), 10));
+        }
+
+        // Show dialog
+        new AlertDialog.Builder(this)
+                .setTitle("Low Stock Report")
+                .setMessage(message.toString())
+                .setPositiveButton("OK", null)
+                .setNeutralButton("Send SMS Alerts", (dialog, which) -> {
+                    // Send SMS for all low-stock items
+                    for (InventoryItemEntity item : lowStockItems) {
+                        sendLowInventoryNotification(item.getItemName(), item.getQuantity());
+                    }
+                })
+                .show();
+    }
+
+    // ========== ORIGINAL METHODS (UNCHANGED) ==========
+
+    /**
+     * Add a new inventory item using ViewModel.
      */
     private void addNewItem() {
         String name = itemNameInput.getText().toString().trim();
@@ -172,11 +375,7 @@ public class InventoryActivity extends AppCompatActivity {
             int quantity = Integer.parseInt(quantityStr);
             double price = Double.parseDouble(priceStr);
 
-            // MVVM CHANGE: Use ViewModel instead of DatabaseHelper
-            // OLD: long itemId = databaseHelper.addInventoryItem(newItem, currentUserId);
             viewModel.insert(name, quantity, price, currentUserId);
-
-            // No need to manually update UI - LiveData observer handles it!
             Toast.makeText(this, "Item added to shared inventory!", Toast.LENGTH_SHORT).show();
 
             // Check for low inventory notification
@@ -190,8 +389,7 @@ public class InventoryActivity extends AppCompatActivity {
     }
 
     /**
-     * NEW METHOD: Update inventory display when data changes.
-     * Called automatically by LiveData observer.
+     * Update inventory display when data changes.
      */
     private void updateInventoryDisplay() {
         inventoryContainer.removeAllViews();
@@ -205,8 +403,7 @@ public class InventoryActivity extends AppCompatActivity {
     }
 
     /**
-     * MODIFIED: Create and add an item view to the inventory container.
-     * Changed to use InventoryItemEntity instead of InventoryItem.
+     * Create and add an item view to the inventory container.
      */
     private void addItemToView(InventoryItemEntity item, int position) {
 
@@ -291,7 +488,7 @@ public class InventoryActivity extends AppCompatActivity {
     }
 
     /**
-     * MODIFIED: Edit item name using ViewModel.
+     * Edit item name using ViewModel.
      */
     private void editItemName(InventoryItemEntity item, TextView nameView) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -306,14 +503,9 @@ public class InventoryActivity extends AppCompatActivity {
         builder.setPositiveButton("Save", (dialog, which) -> {
             String newName = input.getText().toString().trim();
             if (!newName.isEmpty() && !newName.equals(item.getItemName())) {
-                // Update the entity
                 item.setItemName(newName);
                 item.setLastModifiedBy(currentUserId);
-
-                // MVVM CHANGE: Use ViewModel
                 viewModel.update(item, item.getQuantity(), item.getPrice(), currentUserId);
-
-                // UI updates automatically via LiveData!
                 Toast.makeText(this, "Item name updated", Toast.LENGTH_SHORT).show();
             }
         });
@@ -323,7 +515,7 @@ public class InventoryActivity extends AppCompatActivity {
     }
 
     /**
-     * MODIFIED: Edit item quantity using ViewModel.
+     * Edit item quantity using ViewModel.
      */
     private void editItemQuantity(InventoryItemEntity item, TextView quantityView) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -341,7 +533,6 @@ public class InventoryActivity extends AppCompatActivity {
             try {
                 int newQuantity = Integer.parseInt(quantityStr);
                 if (newQuantity >= 0 && newQuantity != item.getQuantity()) {
-                    // MVVM CHANGE: Use ViewModel
                     viewModel.update(item, newQuantity, item.getPrice(), currentUserId);
 
                     // Check for low inventory
@@ -361,7 +552,7 @@ public class InventoryActivity extends AppCompatActivity {
     }
 
     /**
-     * MODIFIED: Edit item price using ViewModel.
+     * Edit item price using ViewModel.
      */
     private void editItemPrice(InventoryItemEntity item, TextView priceView) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -380,7 +571,6 @@ public class InventoryActivity extends AppCompatActivity {
             try {
                 double newPrice = Double.parseDouble(priceStr);
                 if (newPrice >= 0 && newPrice != item.getPrice()) {
-                    // MVVM CHANGE: Use ViewModel
                     viewModel.update(item, item.getQuantity(), newPrice, currentUserId);
                     Toast.makeText(this, "Price updated", Toast.LENGTH_SHORT).show();
                 }
@@ -411,14 +601,11 @@ public class InventoryActivity extends AppCompatActivity {
     }
 
     /**
-     * MODIFIED: Delete an inventory item using ViewModel.
+     * Delete an inventory item using ViewModel.
      */
     private void deleteItem(int position, LinearLayout itemRow, InventoryItemEntity item) {
         if (position >= 0 && position < inventoryItems.size()) {
-            // MVVM CHANGE: Use ViewModel
             viewModel.delete(item);
-
-            // UI updates automatically via LiveData!
             Toast.makeText(this, item.getItemName() + " deleted from shared inventory",
                     Toast.LENGTH_SHORT).show();
         }
@@ -441,7 +628,14 @@ public class InventoryActivity extends AppCompatActivity {
         if (inventoryItems.isEmpty()) {
             inventoryContainer.setVisibility(View.GONE);
             emptyStateText.setVisibility(View.VISIBLE);
-            emptyStateText.setText("No items in shared inventory.\nBe the first to add an item!");
+
+            // ENHANCEMENT TWO: Show different message if search is active
+            String searchQuery = viewModel.getCurrentSearchQuery().getValue();
+            if (searchQuery != null && !searchQuery.isEmpty()) {
+                emptyStateText.setText("No items found matching '" + searchQuery + "'");
+            } else {
+                emptyStateText.setText("No items in shared inventory.\nBe the first to add an item!");
+            }
         } else {
             inventoryContainer.setVisibility(View.VISIBLE);
             emptyStateText.setVisibility(View.GONE);
@@ -460,6 +654,9 @@ public class InventoryActivity extends AppCompatActivity {
                 "Check SMS Status",
                 "Refresh Inventory",
                 "Inventory Statistics",
+
+                // ENHANCEMENT TWO: New option
+                "Clear Search & Sort",
                 "Reset Database (Clear All Data)",
                 "Logout",
                 "About"
@@ -475,19 +672,29 @@ public class InventoryActivity extends AppCompatActivity {
                     Toast.makeText(this, status, Toast.LENGTH_LONG).show();
                     break;
                 case 2:
-                    // LiveData automatically refreshes - just show message
-                    Toast.makeText(this, "Inventory auto-refreshes!", Toast.LENGTH_SHORT).show();
+                    viewModel.refreshDisplayedItems();
+                    viewModel.updateLowStockAlerts();
+                    Toast.makeText(this, "Inventory refreshed!", Toast.LENGTH_SHORT).show();
                     break;
                 case 3:
                     showInventoryStatistics();
                     break;
+
+                // ENHANCEMENT TWO: Clear search and reset sort
                 case 4:
-                    confirmDatabaseReset();
+                    searchEditText.setText("");
+                    viewModel.clearSearch();
+                    viewModel.setSortMode(InventorySorter.SortMode.NAME_ASC);
+                    highlightActiveButton(sortByNameButton);
+                    Toast.makeText(this, "Search cleared, sorting by name", Toast.LENGTH_SHORT).show();
                     break;
                 case 5:
-                    confirmLogout();
+                    confirmDatabaseReset();
                     break;
                 case 6:
+                    confirmLogout();
+                    break;
+                case 7:
                     showAboutDialog();
                     break;
             }
@@ -497,24 +704,19 @@ public class InventoryActivity extends AppCompatActivity {
     }
 
     /**
-     * MODIFIED: Confirm database reset using ViewModel.
+     * Confirm database reset using ViewModel.
      */
     private void confirmDatabaseReset() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("⚠️ Reset Database");
+        builder.setTitle("Reset Database");
         builder.setMessage("This will permanently delete ALL inventory items and user accounts on THIS DEVICE.\n\nThis action cannot be undone.\n\nAre you sure?");
 
         builder.setPositiveButton("Reset Everything", (dialog, which) -> {
-            // MVVM CHANGE: Use ViewModel
             viewModel.deleteAllItems();
-
-            // Clear current session
             LoginActivity.logoutUser(this);
-
             Toast.makeText(this, "Database reset complete. All data cleared on this device.",
                     Toast.LENGTH_LONG).show();
 
-            // Return to login screen
             Intent intent = new Intent(this, LoginActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
@@ -531,6 +733,7 @@ public class InventoryActivity extends AppCompatActivity {
 
     /**
      * Show inventory statistics.
+     * ENHANCED: Now uses displayed items (filtered/sorted) for statistics.
      */
     private void showInventoryStatistics() {
         String stats = getInventoryStatistics();
@@ -561,16 +764,19 @@ public class InventoryActivity extends AppCompatActivity {
 
     /**
      * Show about dialog with app information.
+     * ENHANCED: Updated version info.
      */
     private void showAboutDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("About Inventory Manager");
-        builder.setMessage("Inventory Manager v2.0 - MVVM Enhanced\n\n" +
+        builder.setMessage("Inventory Manager v3.0 - Enhanced with Algorithms\n\n" +
                 "Features:\n" +
                 "• MVVM Architecture with Room Database\n" +
                 "• Automatic UI updates with LiveData\n" +
+                "• Real-time search (O(n) linear search)\n" +
+                "• Multiple sort options (O(n log n) TimSort)\n" +
+                "• Low-stock priority queue (O(1) access)\n" +
                 "• Shared inventory across all users\n" +
-                "• Add, edit, and delete inventory items\n" +
                 "• SMS notifications for low inventory\n" +
                 "• User authentication\n" +
                 "• Real-time collaboration\n\n" +
@@ -591,9 +797,14 @@ public class InventoryActivity extends AppCompatActivity {
 
     /**
      * Get current inventory statistics.
+     * ENHANCED: Now uses displayed items (respects search/filter).
      */
     public String getInventoryStatistics() {
         if (inventoryItems.isEmpty()) {
+            String searchQuery = viewModel.getCurrentSearchQuery().getValue();
+            if (searchQuery != null && !searchQuery.isEmpty()) {
+                return "No items found matching '" + searchQuery + "'";
+            }
             return "No items in shared inventory";
         }
 
@@ -610,9 +821,24 @@ public class InventoryActivity extends AppCompatActivity {
             }
         }
 
+        // ENHANCEMENT TWO: Add search/sort info to statistics
+        String searchInfo = "";
+        String searchQuery = viewModel.getCurrentSearchQuery().getValue();
+        if (searchQuery != null && !searchQuery.isEmpty()) {
+            searchInfo = "• Filtered by: '" + searchQuery + "'\n";
+        }
+
+        InventorySorter.SortMode sortMode = viewModel.getCurrentSortMode().getValue();
+        String sortInfo = "";
+        if (sortMode != null) {
+            sortInfo = "• Sorted by: " + sortMode.name().replace("_", " ") + "\n";
+        }
+
         return String.format(Locale.US,
                 "Shared Inventory Statistics:\n" +
-                        "• Total Items: %d\n" +
+                        searchInfo +
+                        sortInfo +
+                        "• Total Items Displayed: %d\n" +
                         "• Total Quantity: %d\n" +
                         "• Total Value: %s\n" +
                         "• Low Stock Items: %d\n" +
@@ -627,6 +853,14 @@ public class InventoryActivity extends AppCompatActivity {
      */
     @Override
     public void onBackPressed() {
+        // Call super to handle the back press properly
+        showLogoutDialog();
+    }
+
+    /**
+     * Show logout confirmation dialog.
+     */
+    private void showLogoutDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Logout");
         builder.setMessage("Do you want to logout and return to the login screen?");
@@ -654,24 +888,8 @@ public class InventoryActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // No need to manually refresh - LiveData handles it automatically!
+        // ENHANCEMENT TWO: Refresh displayed items and alerts
+        viewModel.refreshDisplayedItems();
+        viewModel.updateLowStockAlerts();
     }
 }
-
-/*
- * SUMMARY OF MVVM CHANGES:
- *
- * 1. Replaced DatabaseHelper with InventoryViewModel (line 45)
- * 2. Added setupObservers() method for LiveData (lines 103-126)
- * 3. Changed InventoryItem to InventoryItemEntity throughout
- * 4. All database operations now go through ViewModel
- * 5. UI updates automatically via LiveData observers - no manual refresh needed!
- * 6. FIXED: Changed from Activity to AppCompatActivity for lifecycle support
- *
- * KEY BENEFITS DEMONSTRATED:
- * - Separation of Concerns: Activity only handles UI
- * - Automatic UI Updates: LiveData updates UI when data changes
- * - Background Threading: Repository handles thread management
- * - Testability: ViewModel can be unit tested without Activity
- * - Lifecycle Awareness: LiveData respects Activity lifecycle
- */

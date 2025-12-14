@@ -3,18 +3,20 @@ package com.example.tristenbradneyinventoryapplication;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
-import java.util.List;
+
+import androidx.lifecycle.ViewModelProvider;
 
 /**
  * LoginActivity handles user authentication and new account creation.
- * This activity integrates with the SQLite database to provide secure login functionality.
+ * This activity integrates with the MVVM architecture to provide secure login functionality.
+ *
+ * UPDATED FOR ENHANCEMENT ONE: Now uses ViewModel instead of DatabaseHelper
  */
 public class LoginActivity extends Activity {
 
@@ -23,10 +25,10 @@ public class LoginActivity extends Activity {
     private Button loginButton;
     private Button createAccountButton;
 
-    // Database helper instance.
-    private DatabaseHelper databaseHelper;
+    // ViewModel instance (replaces DatabaseHelper)
+    private InventoryViewModel viewModel;
 
-    // SharedPreferences for session management.
+    // SharedPreferences for session management
     private SharedPreferences sharedPreferences;
     private static final String PREFS_NAME = "InventoryAppPrefs";
     private static final String KEY_USER_ID = "user_id";
@@ -47,17 +49,17 @@ public class LoginActivity extends Activity {
      * Initialize all UI components and helper classes.
      */
     private void initializeComponents() {
-
-        // Initialize UI components.
+        // Initialize UI components
         usernameInput = findViewById(R.id.username_input);
         passwordInput = findViewById(R.id.password_input);
         loginButton = findViewById(R.id.login_button);
         createAccountButton = findViewById(R.id.create_account_button);
 
-        // Initialize database helper.
-        databaseHelper = DatabaseHelper.getInstance(this);
+        // Initialize ViewModel without ViewModelProvider
+        // Use Application context instead
+        viewModel = new InventoryViewModel(getApplication());
 
-        // Initialize SharedPreferences.
+        // Initialize SharedPreferences
         sharedPreferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
     }
 
@@ -73,14 +75,14 @@ public class LoginActivity extends Activity {
 
             if (userId != -1 && !username.isEmpty()) {
 
-                // User is already logged in, skip to permissions screen.
+                // User is already logged in, skip to permissions screen
                 Toast.makeText(this, "Welcome back, " + username + "!", Toast.LENGTH_SHORT).show();
                 proceedToPermissions();
                 return;
             }
         }
 
-        // Clear any invalid session data.
+        // Clear any invalid session data
         clearSession();
     }
 
@@ -94,6 +96,7 @@ public class LoginActivity extends Activity {
 
     /**
      * Handle user login attempt.
+     * UPDATED: Now uses ViewModel with callback pattern
      */
     private void handleLogin() {
         String username = usernameInput.getText().toString().trim();
@@ -101,33 +104,34 @@ public class LoginActivity extends Activity {
 
         if (validateInput(username, password)) {
 
-            // Disable buttons to prevent multiple submissions.
+            // Disable buttons to prevent multiple submissions
             setButtonsEnabled(false);
 
-            // Attempt authentication.
-            long userId = databaseHelper.authenticateUser(username, password);
+            // Attempt authentication using ViewModel
+            viewModel.authenticateUser(username, password, (userId, authenticatedUsername) -> {
+                if (userId > 0) {
 
-            if (userId != -1) {
+                    // Authentication successful
+                    saveUserSession(userId, authenticatedUsername);
+                    Toast.makeText(this, "Login successful!", Toast.LENGTH_SHORT).show();
+                    proceedToPermissions();
+                } else {
 
-                // Authentication successful.
-                saveUserSession(userId, username);
-                Toast.makeText(this, "Login successful!", Toast.LENGTH_SHORT).show();
-                proceedToPermissions();
-            } else {
+                    // Authentication failed
+                    Toast.makeText(this, "Invalid username or password", Toast.LENGTH_LONG).show();
 
-                // Authentication failed.
-                Toast.makeText(this, "Invalid username or password", Toast.LENGTH_LONG).show();
-
-                // Clear password field.
-                passwordInput.setText("");
-                passwordInput.requestFocus();
-                setButtonsEnabled(true);
-            }
+                    // Clear password field
+                    passwordInput.setText("");
+                    passwordInput.requestFocus();
+                    setButtonsEnabled(true);
+                }
+            });
         }
     }
 
     /**
      * Handle new account creation.
+     * UPDATED: Now uses ViewModel with callback pattern
      */
     private void handleCreateAccount() {
         String username = usernameInput.getText().toString().trim();
@@ -135,32 +139,32 @@ public class LoginActivity extends Activity {
 
         if (validateInput(username, password)) {
 
-            // Disable buttons to prevent multiple submissions.
+            // Disable buttons to prevent multiple submissions
             setButtonsEnabled(false);
 
             Log.d("LoginActivity", "Attempting to create account for: " + username);
 
-            // Attempt account creation.
-            long userId = databaseHelper.createUser(username, password);
+            // Attempt account creation using ViewModel
+            viewModel.createUser(username, password, userId -> {
+                if (userId > 0) {
 
-            if (userId > 0) {
+                    // Account creation successful
+                    saveUserSession(userId, username);
+                    Toast.makeText(this, "Account created successfully!", Toast.LENGTH_SHORT).show();
+                    proceedToPermissions();
+                } else if (userId == -2) {
 
-                // Account creation successful.
-                saveUserSession(userId, username);
-                Toast.makeText(this, "Account created successfully!", Toast.LENGTH_SHORT).show();
-                proceedToPermissions();
-            } else if (userId == -2) {
+                    // Username already exists
+                    Toast.makeText(this, "Username already exists. Please choose a different username.", Toast.LENGTH_LONG).show();
+                    usernameInput.requestFocus();
+                    setButtonsEnabled(true);
+                } else {
 
-                // Username already exists.
-                Toast.makeText(this, "Username already exists. Please choose a different username.", Toast.LENGTH_LONG).show();
-                usernameInput.requestFocus();
-                setButtonsEnabled(true);
-            } else {
-
-                // Other error.
-                Toast.makeText(this, "Failed to create account. Please try again.", Toast.LENGTH_LONG).show();
-                setButtonsEnabled(true);
-            }
+                    // Other error
+                    Toast.makeText(this, "Failed to create account. Please try again.", Toast.LENGTH_LONG).show();
+                    setButtonsEnabled(true);
+                }
+            });
         }
     }
 
@@ -169,11 +173,11 @@ public class LoginActivity extends Activity {
      */
     private boolean validateInput(String username, String password) {
 
-        // Clear any existing errors.
+        // Clear any existing errors
         usernameInput.setError(null);
         passwordInput.setError(null);
 
-        // Validate username.
+        // Validate username
         if (TextUtils.isEmpty(username)) {
             usernameInput.setError("Username is required");
             usernameInput.requestFocus();
@@ -192,14 +196,14 @@ public class LoginActivity extends Activity {
             return false;
         }
 
-        // Check for valid username characters.
+        // Check for valid username characters
         if (!username.matches("^[a-zA-Z0-9_]+$")) {
             usernameInput.setError("Username can only contain letters, numbers, and underscores");
             usernameInput.requestFocus();
             return false;
         }
 
-        // Validate password.
+        // Validate password
         if (TextUtils.isEmpty(password)) {
             passwordInput.setError("Password is required");
             passwordInput.requestFocus();
@@ -258,7 +262,7 @@ public class LoginActivity extends Activity {
         Intent intent = new Intent(this, PermissionsActivity.class);
         startActivity(intent);
 
-        // Prevent going back to login screen.
+        // Prevent going back to login screen
         finish();
     }
 
